@@ -57,7 +57,11 @@ def get_input_frames(args):
         frame_list.append(frame.copy()[:, :, ::-1])
 
     choice_list = range(len(frame_list) - 32 + 1)
-    index = np.random.choice(list(choice_list))
+    if args.frame_index is None:
+        index = np.random.choice(list(choice_list))
+    else:
+        index = args.frame_index
+        assert index < len(frame_list) - 31
     print("frame index:", index)
     frame_list = frame_list[index:index + 32]
     frames_to_show = frame_list.copy()
@@ -165,6 +169,7 @@ def get_args():
     parser.add_argument("--video_path", type=str, default="./_EN7WZryBZQ_000690_000700.mp4", help="Path to test video")
     parser.add_argument("--num_classes", type=int, default=400, help="Num classes")
     parser.add_argument("--use_cuda", type=bool, default=False, help="Use GPU acceleration")
+    parser.add_argument("--frame_index", type=int, default=10, help="Index of first frame of 32 consequent frames")
 
     args = parser.parse_args()
     return args
