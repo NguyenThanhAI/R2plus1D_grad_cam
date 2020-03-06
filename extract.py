@@ -1,25 +1,34 @@
-import os
+import sys
+import math
+import json
 import argparse
-import numpy as np
+from pathlib import Path
+
 import cv2
-import matplotlib.pyplot as plt
+import numpy as np
+
 import torch
 import torch.nn as nn
-from torch.nn.modules import Sequential
-from torch.nn import functional as F
-from torch.autograd import Function
+from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
+from torchvision.transforms import Compose
 from torchvision.models.video.resnet import VideoResNet, BasicBlock, R2Plus1dStem, Conv2Plus1D
 
-np.random.seed(1000)
+from einops.layers.torch import Rearrange
 
-def r2plus1d_34(num_classes, pretrained=False, progress=False, **kwargs):
+from torch.nn import functional as F
+
+
+def r2plus1d_34(num_classes):
     model = VideoResNet(block=BasicBlock,
                         conv_makers=[Conv2Plus1D] * 4,
                         layers=[3, 4, 6, 3],
                         stem=R2Plus1dStem)
 
     model.fc = nn.Linear(model.fc.in_features, out_features=num_classes)
+
+    # Fix difference in PyTorch vs Caffe2 architecture
+    # https://github.com/facebookresearch/VMZ/issues/89
     model.layer2[0].conv2[0] = Conv2Plus1D(128, 128, 288)
     model.layer3[0].conv2[0] = Conv2Plus1D(256, 256, 576)
     model.layer4[0].conv2[0] = Conv2Plus1D(512, 512, 1152)
@@ -29,26 +38,11 @@ def r2plus1d_34(num_classes, pretrained=False, progress=False, **kwargs):
         if isinstance(m, nn.BatchNorm3d):
             m.eps = 1e-3
             m.momentum = 0.9
-            m.affine = True
-            m.track_running_stats = True
 
     return model
 
-
-def show_frames_on_figure(frames):
-    fig = plt.figure(figsize=(10, 10))
-    rows = 4
-    columns = 8
-    for i, frame in enumerate(frames):
-        fig.add_subplot(rows, columns, i+1)
-        plt.imshow(frame)
-        plt.title("Frame " + str(i + 1))
-    plt.savefig(os.path.join("heatmap", folder_name, "input_frames.jpg"))
-    plt.show()
-
-
 def get_input_frames(args):
-    cap = cv2.VideoCapture(args.video_path)
+    cap = cv2.VideoCapture(args.video)
 
     frame_list = []
 
@@ -59,19 +53,18 @@ def get_input_frames(args):
             break
 
         frame = cv2.resize(frame, (112, 112))
-        frame_list.append(frame.copy()[:, :, ::-1])
+        frame_list.append(frame.copy()[:, :, ::-1] / 255.)
+
+    #print(frame_list)
 
     choice_list = range(len(frame_list) - 32 + 1)
-    if args.frame_index is None:
-        index = np.random.choice(list(choice_list))
-    else:
-        index = args.frame_index
-        assert index < len(frame_list) - 31
+    index = 30
+    assert index < len(frame_list) - 31
     print("frame index:", index)
     frame_list = frame_list[index:index + 32]
     frames_to_show = frame_list.copy()
-    show_frames_on_figure(frames_to_show)
-    preprocess = lambda x: (x / np.array([255., 255., 255.])[np.newaxis, np.newaxis, :] - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :]
+    #show_frames_on_figure(frames_to_show)
+    preprocess = lambda x: (x - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :]
     frame_list = list(map(preprocess, frame_list))
     frame_list = np.stack(frame_list, axis=0)
     frame_list = np.transpose(frame_list, axes=(3, 0, 1, 2))
@@ -81,177 +74,167 @@ def get_input_frames(args):
     return frame_list
 
 
-class Feature_Extractor():
+class FrameRange:
+    def __init__(self, video, first, last):
+        assert first <= last
 
-    def __init__(self, model, target_layers):
-        self.model = model
-        self.target_layers = target_layers
-        self.gradients = []
+        for i in range(first):
+            ret, _ = video.read()
+
+            if not ret:
+                raise RuntimeError("seeking to frame at index {} failed".format(i))
+
+        self.video = video
+        self.it = first
+        self.last = last
+
+    def __next__(self):
+        if self.it >= self.last or not self.video.isOpened():
+            raise StopIteration
+
+        ok, frame = self.video.read()
+
+        if not ok:
+            raise RuntimeError("decoding frame at index {} failed".format(self.it))
+
+        self.it += 1
+
+        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
-    def save_gradient(self, grad):
-        self.gradients.append(grad)
+class BatchedRange:
+    def __init__(self, rng, n):
+        self.rng = rng
+        self.n = n
 
-    def get_gradient(self):
-        return self.gradients
+    def __next__(self):
+        ret = []
 
+        for i in range(self.n):
+            ret.append(next(self.rng))
+
+        return ret
+
+
+class TransformedRange:
+    def __init__(self, rng, fn):
+        self.rng = rng
+        self.fn = fn
+
+    def __next__(self):
+        return self.fn(next(self.rng))
+
+
+class VideoDataset(IterableDataset):
+    def __init__(self, path, clip, transform=None):
+        super().__init__()
+
+        self.path = path
+        self.clip = clip
+        self.transform = transform
+
+        video = cv2.VideoCapture(str(path))
+        frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        video.release()
+
+        self.first = 0
+        self.last = frames
+
+    def __iter__(self):
+        info = get_worker_info()
+
+        video = cv2.VideoCapture(str(self.path))
+
+        if info is None:
+            rng = FrameRange(video, self.first, self.last)
+        else:
+            per = int(math.ceil((self.last - self.first) / float(info.num_workers)))
+            wid = info.id
+
+            first = self.first + wid * per
+            last = min(first + per, self.last)
+
+            rng = FrameRange(video, first, last)
+
+        if self.transform is not None:
+            fn = self.transform
+        else:
+            fn = lambda v: v
+
+        return TransformedRange(BatchedRange(rng, self.clip), fn)
+
+
+class WebcamDataset(IterableDataset):
+    def __init__(self, clip, transform=None):
+        super().__init__()
+
+        self.clip = clip
+        self.transform = transform
+        self.video = cv2.VideoCapture(0)
+
+    def __iter__(self):
+        info = get_worker_info()
+
+        if info is not None:
+            raise RuntimeError("multiple workers not supported in WebcamDataset")
+
+        # treat webcam as fixed frame range for now: 10 minutes
+        rng = FrameRange(self.video, 0, 30 * 60 * 10)
+
+        if self.transform is not None:
+            fn = self.transform
+        else:
+            fn = lambda v: v
+
+        return TransformedRange(BatchedRange(rng, self.clip), fn)
+
+
+class ToTensor:
     def __call__(self, x):
-        outputs = []
-        self.gradients = []
-        for name, module in self.model._modules.items():
-            if name != "fc":
-                x = module(x)
-            else:
-                x = x.squeeze().unsqueeze(0)
-                x = module(x)
-            if name in self.target_layers:
-                x.register_hook(self.save_gradient)
-                outputs += [x]
-            #print(list(x.size()))
-        return outputs, x
+        print(torch.from_numpy(np.array(x)).float() / 255.)
+        return torch.from_numpy(np.array(x)).float() / 255.
 
 
-class GradCam:
-    def __init__(self, model, target_layer_names, use_cuda):
-        self.model = model.eval()
-        self.cuda = use_cuda
-        if self.cuda:
-            self.model = model.cuda()
-        self.extractor = Feature_Extractor(self.model, target_layer_names)
+class Resize:
+    def __init__(self, size, mode="bilinear"):
+        self.size = size
+        self.mode = mode
 
-    def forward(self, input):
-        return self.model(input)
-
-    def __call__(self, input, index=None):
-        if self.cuda:
-            features, output = self.extractor(input.cuda())
-        else:
-            features, output = self.extractor(input)
-        name_cam = "groundtruth_class_cams.jpg"
-        if index is None:
-            softmax = F.softmax(output, dim=1)
-            prob = softmax.cpu().data.numpy()[0]
-            index = np.argsort(prob)[::-1][:3].tolist()
-            name_cam = "predicted_class_cams.jpg"
-            print(list(map(lambda x: label_to_class[x], index)))
-            print("prob:", prob[index])
-            index = index[0]
-
-        print("index of gradcam", index)
-
-        one_hot = np.zeros((1, output.size()[-1]), dtype=np.float32)
-        one_hot[0][index] = 1
-        one_hot = torch.from_numpy(one_hot).requires_grad_(True)
-
-        if self.cuda:
-            one_hot = torch.sum(one_hot.cuda() * output)
-        else:
-            one_hot = torch.sum(one_hot * output)
-
-        self.model.zero_grad()
-        one_hot.backward(retain_graph=True)
-
-        grads_val = self.extractor.get_gradient()[-1].cpu().data.numpy()
-
-        target = features[-1]
-
-        target = target.cpu().data.numpy()[0, :]
-
-        weights = np.mean(grads_val, axis=(3, 4))[0, :, :]
-
-        cam = np.sum(weights[:, :, np.newaxis, np.newaxis] * target, axis=0)
-
-        cam_list = []
-
-        for i in range(cam.shape[0]):
-            cam_temp = cam[i].copy()
-            cam_temp = np.maximum(cam_temp, 0)
-            cam_temp = cv2.resize(cam_temp, (512, 512))
-            cam_temp = (cam_temp - np.min(cam_temp)) / np.max(cam_temp)
-            cam_temp = cv2.applyColorMap(np.uint8(255 * cam_temp), cv2.COLORMAP_JET)
-            cam_list.append(cam_temp)
-
-        mean_cam = np.mean(cam, axis=0)
-        mean_cam = np.maximum(mean_cam, 0)
-        mean_cam = cv2.resize(mean_cam, (512, 512))
-        mean_cam = (mean_cam - np.min(mean_cam)) / np.max(mean_cam)
-        mean_cam = cv2.applyColorMap(np.uint8(255 * mean_cam), cv2.COLORMAP_JET)
-
-        cam_list.append(mean_cam)
-
-        min_cam = np.min(cam, axis=0)
-        min_cam = np.maximum(min_cam, 0)
-        min_cam = cv2.resize(min_cam, (512, 512))
-        min_cam = (min_cam - np.min(min_cam)) / np.max(min_cam)
-        min_cam = cv2.applyColorMap(np.uint8(255 * min_cam), cv2.COLORMAP_JET)
-
-        cam_list.append(min_cam)
-
-        max_cam = np.max(cam, axis=0)
-        max_cam = np.maximum(max_cam, 0)
-        max_cam = cv2.resize(max_cam, (512, 512))
-        max_cam = (max_cam - np.min(max_cam)) / np.max(max_cam)
-        max_cam = cv2.applyColorMap(np.uint8(255 * max_cam), cv2.COLORMAP_JET)
-
-        cam_list.append(max_cam)
-
-        fig = plt.figure(figsize=(15, 15))
-        rows = 2
-        columns = 4
-
-        for k, cam_map in enumerate(cam_list):
-            fig.add_subplot(rows, columns, k + 1)
-            im = plt.imshow(cam_map[:, :, ::-1], cmap=plt.cm.get_cmap("jet"))
-            if k == 0:
-                plt.title("1st cam")
-            elif k == 1:
-                plt.title("2nd cam")
-            elif k == 2:
-                plt.title("3rd cam")
-            elif k == 3:
-                plt.title("4th cam")
-            elif k == 4:
-                plt.title("Average cam")
-            elif k == 5:
-                plt.title("Min cam")
-            else:
-                plt.title("Max cam")
-        cax = plt.axes([0.925, 0.1, 0.02, 0.8])
-        plt.colorbar(cax=cax)
-        plt.savefig(os.path.join("heatmap", folder_name, name_cam))
-        plt.show()
-
-        cam = np.mean(cam, axis=0)
-
-        cam = np.maximum(cam, 0)
-        cam = cv2.resize(cam, (512, 512))
-
-        cam = cam - np.min(cam)
-        cam = cam / np.max(cam)
-
-        cam = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
-
-        return cam
+    def __call__(self, video):
+        return torch.nn.functional.interpolate(video, size=self.size,
+            mode=self.mode, align_corners=False)
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
+class CenterCrop:
+    def __init__(self, size):
+        self.size = size
 
-    parser.add_argument("--checkpoint_path", type=str, default="r2.5d_d34_l32.pth", help="Path to pretrained model")
-    parser.add_argument("--video_path", type=str, default=r"D:\kinetics400\videos_train\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="Path to test video")
-    parser.add_argument("--num_classes", type=int, default=400, help="Num classes")
-    parser.add_argument("--use_cuda", type=bool, default=False, help="Use GPU acceleration")
-    parser.add_argument("--frame_index", type=int, default=30, help="Index of first frame of 32 consequent frames")
+    def __call__(self, video):
+        h, w = video.shape[-2:]
+        th, tw = self.size
 
-    args = parser.parse_args()
-    return args
+        i = int(round((h - th) / 2.))
+        j = int(round((w - tw) / 2.))
+
+        return video[..., i:(i + th), j:(j + tw)]
 
 
-if __name__ == '__main__':
+class Normalize:
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
 
-    args = get_args()
+    def __call__(self, video):
+        shape = (-1,) + (1,) * (video.dim() - 1)
 
-    label_to_class = {0: 'abseiling', 1: 'air_drumming', 2: 'answering_questions', 3: 'applauding', 4: 'applying_cream',
+        mean = torch.as_tensor(self.mean).reshape(shape)
+        std = torch.as_tensor(self.std).reshape(shape)
+
+        return (video - mean) / std
+
+
+def main(args):
+    labels = {0: 'abseiling', 1: 'air_drumming', 2: 'answering_questions', 3: 'applauding', 4: 'applying_cream',
                       5: 'archery', 6: 'arm_wrestling', 7: 'arranging_flowers', 8: 'assembling_computer',
                       9: 'auctioning', 10: 'baby_waking_up', 11: 'baking_cookies', 12: 'balloon_blowing',
                       13: 'bandaging', 14: 'barbequing', 15: 'bartending', 16: 'beatboxing', 17: 'bee_keeping',
@@ -354,28 +337,71 @@ if __name__ == '__main__':
                       391: 'welding', 392: 'whistling', 393: 'windsurfing', 394: 'wrapping_present', 395: 'wrestling',
                       396: 'writing', 397: 'yawning', 398: 'yoga', 399: 'zumba'}
 
-    class_to_label = {v: k for k, v in label_to_class.items()}
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    folder_name = "_".join(args.video_path.split(os.sep)[-2:])
-    if not os.path.exists(os.path.join("heatmap", folder_name)):
-        os.makedirs(os.path.join("heatmap", folder_name), exist_ok=True)
+    #if torch.cuda.is_available():
+    #    torch.backends.cudnn.benchmark = True
 
-    model = r2plus1d_34(num_classes=args.num_classes)
+    model = r2plus1d_34(num_classes=args.classes)
+    #model = model.to(device)
 
-    model.load_state_dict(torch.load(args.checkpoint_path))
+    #weights = torch.load(args.model, map_location=device)
+    weights = torch.load(args.model)
+    model.load_state_dict(weights)
 
-    grad_cam = GradCam(model=model, target_layer_names=["layer4"], use_cuda=args.use_cuda)
+    #model = nn.DataParallel(model)
+    model.eval()
 
-    input = get_input_frames(args)
+    inputs = get_input_frames(args)
 
-    predicted_cam = grad_cam(input)
+    softmax = F.softmax(model(inputs), dim=1).cpu().data.numpy()[0]
+    index = np.argmax(softmax)
+    print(labels[index], softmax[index])
 
-    cv2.imshow("predicted_cam", predicted_cam)
-    cv2.waitKey(0)
+    transform = Compose([
+        ToTensor(),
+        Rearrange("t h w c -> c t h w"),
+        Resize((128, 171)),
+        Normalize(mean=[0.43216, 0.394666, 0.37645], std=[0.22803, 0.22145, 0.216989]),
+        CenterCrop((112, 112)),
+    ])
 
-    index = class_to_label[args.video_path.split(os.sep)[-2]]
+    #dataset = WebcamDataset(args.frames, transform=transform)
 
-    groundtruth_cam = grad_cam(input, index=index)
+    dataset = VideoDataset(args.video, args.frames, transform=transform)
+    loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
-    cv2.imshow("groundtruth_cam", groundtruth_cam)
-    cv2.waitKey(0)
+    for inputs in loader:
+        # NxCxTxHxW
+        assert inputs.size() == (args.batch_size, 3, args.frames, 112, 112)
+
+        #inputs = inputs.to(device)
+
+        outputs = model(inputs)
+
+        _, preds = torch.max(outputs, dim=1)
+        preds = preds.data.cpu().numpy()
+
+        scores = nn.functional.softmax(outputs, dim=1)
+        scores = scores.data.cpu().numpy()
+
+        for pred, score in zip(preds, scores):
+            index = pred.item()
+            label = labels[index]
+            score = score.max().item()
+
+            print("label='{}' score={}".format(label, score), file=sys.stderr)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    arg = parser.add_argument
+
+    arg("--model", type=str, default="r2.5d_d34_l32.pth", help=".pth file to load model weights from")
+    arg("--video", type=str, default=r"D:\kinetics400\videos_train\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="video file to run feature extraction on")
+    arg("--frames", type=int, choices=(8, 32), default=32, help="clip frames for video model")
+    arg("--classes", type=int, choices=(400, 487), default=400, help="classes in last layer")
+    arg("--batch-size", type=int, default=1, help="number of sequences per batch for inference")
+    arg("--num-workers", type=int, default=0, help="number of workers for data loading")
+
+    main(parser.parse_args())
