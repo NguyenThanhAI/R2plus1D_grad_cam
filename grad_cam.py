@@ -58,7 +58,7 @@ def get_input_frames(args):
         if not ret:
             break
 
-        frame = cv2.resize(frame, (112, 112))
+        frame = cv2.resize(frame, (171, 128))
         frame_list.append(frame.copy()[:, :, ::-1])
 
     choice_list = range(len(frame_list) - 32 + 1)
@@ -71,7 +71,7 @@ def get_input_frames(args):
     frame_list = frame_list[index:index + 32]
     frames_to_show = frame_list.copy()
     show_frames_on_figure(frames_to_show)
-    preprocess = lambda x: (x / np.array([255., 255., 255.])[np.newaxis, np.newaxis, :] - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :]
+    preprocess = lambda x: ((x / np.array([255., 255., 255.])[np.newaxis, np.newaxis, :] - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :])[int(round((128 - 112)/2)):int(round((128 - 112)/2)) + 112, int(round((171 - 112)/2)):int(round((171 - 112)/2))+112]
     frame_list = list(map(preprocess, frame_list))
     frame_list = np.stack(frame_list, axis=0)
     frame_list = np.transpose(frame_list, axes=(3, 0, 1, 2))
@@ -238,7 +238,7 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--checkpoint_path", type=str, default="r2.5d_d34_l32.pth", help="Path to pretrained model")
-    parser.add_argument("--video_path", type=str, default=r"D:\kinetics400\videos_train\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="Path to test video")
+    parser.add_argument("--video_path", type=str, default=r"F:\PythonProjects\action_understanding\convert_caffe_model_to_pytorch\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="Path to test video")
     parser.add_argument("--num_classes", type=int, default=400, help="Num classes")
     parser.add_argument("--use_cuda", type=bool, default=False, help="Use GPU acceleration")
     parser.add_argument("--frame_index", type=int, default=30, help="Index of first frame of 32 consequent frames")
@@ -364,18 +364,18 @@ if __name__ == '__main__':
 
     model.load_state_dict(torch.load(args.checkpoint_path))
 
-    grad_cam = GradCam(model=model, target_layer_names=["layer4"], use_cuda=args.use_cuda)
+    model.eval()
 
     input = get_input_frames(args)
 
-    predicted_cam = grad_cam(input)
+    logits = model(input)
 
-    cv2.imshow("predicted_cam", predicted_cam)
-    cv2.waitKey(0)
+    softmax = F.softmax(logits, dim=1).cpu().data.numpy()[0]
 
-    index = class_to_label[args.video_path.split(os.sep)[-2]]
+    index = np.argsort(softmax)[::-1][:3]
 
-    groundtruth_cam = grad_cam(input, index=index)
+    prob  = softmax[index]
 
-    cv2.imshow("groundtruth_cam", groundtruth_cam)
-    cv2.waitKey(0)
+    predicted_classes = list(map(lambda x: label_to_class[x], index.tolist()))
+
+    print(dict(zip(predicted_classes, prob.tolist())))

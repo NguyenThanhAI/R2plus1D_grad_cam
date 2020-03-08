@@ -52,23 +52,23 @@ def get_input_frames(args):
         if not ret:
             break
 
-        frame = cv2.resize(frame, (112, 112))
+        frame = cv2.resize(frame, (171, 128))
         frame_list.append(frame.copy()[:, :, ::-1] / 255.)
 
     #print(frame_list)
 
     choice_list = range(len(frame_list) - 32 + 1)
-    index = 30
+    index = 120
     assert index < len(frame_list) - 31
     print("frame index:", index)
     frame_list = frame_list[index:index + 32]
     frames_to_show = frame_list.copy()
     #show_frames_on_figure(frames_to_show)
-    preprocess = lambda x: (x - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :]
+    preprocess = lambda x: ((x - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :])[int(round((128 - 112)/2)):int(round((128 - 112)/2)) + 112, int(round((171 - 112)/2)):int(round((171 - 112)/2))+112]
     frame_list = list(map(preprocess, frame_list))
     frame_list = np.stack(frame_list, axis=0)
     frame_list = np.transpose(frame_list, axes=(3, 0, 1, 2))
-
+    print(frame_list.shape)
     frame_list = torch.from_numpy(frame_list)
     frame_list = frame_list.unsqueeze(0).float().requires_grad_(True)
     return frame_list
@@ -137,8 +137,8 @@ class VideoDataset(IterableDataset):
         frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         video.release()
 
-        self.first = 0
-        self.last = frames
+        self.first = 120
+        self.last = self.first + 32
 
     def __iter__(self):
         info = get_worker_info()
@@ -147,6 +147,7 @@ class VideoDataset(IterableDataset):
 
         if info is None:
             rng = FrameRange(video, self.first, self.last)
+            #print("rng:", rng)
         else:
             per = int(math.ceil((self.last - self.first) / float(info.num_workers)))
             wid = info.id
@@ -191,7 +192,7 @@ class WebcamDataset(IterableDataset):
 
 class ToTensor:
     def __call__(self, x):
-        print(torch.from_numpy(np.array(x)).float() / 255.)
+        #print(torch.from_numpy(np.array(x)).float() / 255.)
         return torch.from_numpy(np.array(x)).float() / 255.
 
 
@@ -226,7 +227,7 @@ class Normalize:
 
     def __call__(self, video):
         shape = (-1,) + (1,) * (video.dim() - 1)
-
+        #print("shape:", shape)
         mean = torch.as_tensor(self.mean).reshape(shape)
         std = torch.as_tensor(self.std).reshape(shape)
 
@@ -389,8 +390,9 @@ def main(args):
             index = pred.item()
             label = labels[index]
             score = score.max().item()
-
+            #print("label='{}' score={}".format(label, score), file=sys.stderr)
             print("label='{}' score={}".format(label, score), file=sys.stderr)
+
 
 
 if __name__ == "__main__":
@@ -398,7 +400,7 @@ if __name__ == "__main__":
     arg = parser.add_argument
 
     arg("--model", type=str, default="r2.5d_d34_l32.pth", help=".pth file to load model weights from")
-    arg("--video", type=str, default=r"D:\kinetics400\videos_train\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="video file to run feature extraction on")
+    arg("--video", type=str, default=r"F:\PythonProjects\action_understanding\convert_caffe_model_to_pytorch\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="video file to run feature extraction on")
     arg("--frames", type=int, choices=(8, 32), default=32, help="clip frames for video model")
     arg("--classes", type=int, choices=(400, 487), default=400, help="classes in last layer")
     arg("--batch-size", type=int, default=1, help="number of sequences per batch for inference")
