@@ -2,10 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3d2d07c4-5921-46a9-a6f8-c62913193b5c" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/extract.py" beforeDir="false" afterPath="$PROJECT_DIR$/extract.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/grad_cam.py" beforeDir="false" afterPath="$PROJECT_DIR$/grad_cam.py" afterDir="false" />
     </list>
-    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -23,8 +24,16 @@
   </component>
   <component name="ProjectId" id="1YEhwL263osEJyMK0P2PNrxgrJp" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
   <component name="PropertiesComponent">
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/../i3d_grad_cam" />
+    <property name="run.code.analysis.last.selected.profile" value="aDefault" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -140,5 +149,67 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="425" y="217" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1" timestamp="1583660709869">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="425" y="217" key="ANALYSIS_DLG_com.intellij.analysis.BaseAnalysisAction$1/0.0.1366.728@0.0.1366.728" timestamp="1583660709869" />
+    <state x="92" y="92" width="1182" height="544" key="DiffContextDialog" timestamp="1583679971146">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="92" y="92" width="1182" height="544" key="DiffContextDialog/0.0.1366.728@0.0.1366.728" timestamp="1583679971146" />
+    <state width="1328" height="178" key="GridCell.Tab.0.bottom" timestamp="1583688023904">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="178" key="GridCell.Tab.0.bottom/0.0.1366.728@0.0.1366.728" timestamp="1583688023904" />
+    <state width="1328" height="178" key="GridCell.Tab.0.center" timestamp="1583688023904">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="178" key="GridCell.Tab.0.center/0.0.1366.728@0.0.1366.728" timestamp="1583688023904" />
+    <state width="1328" height="178" key="GridCell.Tab.0.left" timestamp="1583688023904">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="178" key="GridCell.Tab.0.left/0.0.1366.728@0.0.1366.728" timestamp="1583688023904" />
+    <state width="1328" height="178" key="GridCell.Tab.0.right" timestamp="1583688023904">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="178" key="GridCell.Tab.0.right/0.0.1366.728@0.0.1366.728" timestamp="1583688023904" />
+    <state width="1328" height="218" key="GridCell.Tab.1.bottom" timestamp="1583676764180">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="218" key="GridCell.Tab.1.bottom/0.0.1366.728@0.0.1366.728" timestamp="1583676764180" />
+    <state width="1328" height="218" key="GridCell.Tab.1.center" timestamp="1583676764180">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="218" key="GridCell.Tab.1.center/0.0.1366.728@0.0.1366.728" timestamp="1583676764180" />
+    <state width="1328" height="218" key="GridCell.Tab.1.left" timestamp="1583676764180">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="218" key="GridCell.Tab.1.left/0.0.1366.728@0.0.1366.728" timestamp="1583676764180" />
+    <state width="1328" height="218" key="GridCell.Tab.1.right" timestamp="1583676764180">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state width="1328" height="218" key="GridCell.Tab.1.right/0.0.1366.728@0.0.1366.728" timestamp="1583676764180" />
+    <state x="184" y="5" key="SettingsEditor" timestamp="1583665215340">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="184" y="5" key="SettingsEditor/0.0.1366.728@0.0.1366.728" timestamp="1583665215340" />
+    <state x="100" y="100" width="1166" height="528" key="com.intellij.history.integration.ui.views.FileHistoryDialog" timestamp="1583687959478">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="100" y="100" width="1166" height="528" key="com.intellij.history.integration.ui.views.FileHistoryDialog/0.0.1366.728@0.0.1366.728" timestamp="1583687959478" />
+    <state x="92" y="92" width="1182" height="544" key="com.intellij.history.integration.ui.views.SelectionHistoryDialog" timestamp="1583660879793">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="92" y="92" width="1182" height="544" key="com.intellij.history.integration.ui.views.SelectionHistoryDialog/0.0.1366.728@0.0.1366.728" timestamp="1583660879793" />
+    <state x="363" y="188" key="com.intellij.ide.util.TipDialog" timestamp="1583659956828">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="363" y="188" key="com.intellij.ide.util.TipDialog/0.0.1366.728@0.0.1366.728" timestamp="1583659956828" />
+    <state x="247" y="100" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2" timestamp="1583672585136">
+      <screen x="0" y="0" width="1366" height="728" />
+    </state>
+    <state x="247" y="100" key="com.intellij.xdebugger.impl.breakpoints.ui.BreakpointsDialogFactory$2/0.0.1366.728@0.0.1366.728" timestamp="1583672585136" />
   </component>
 </project>
