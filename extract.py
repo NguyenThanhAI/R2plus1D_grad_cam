@@ -400,7 +400,7 @@ if __name__ == "__main__":
     arg = parser.add_argument
 
     arg("--model", type=str, default="r2.5d_d34_l32.pth", help=".pth file to load model weights from")
-    arg("--video", type=str, default=r"D:\kinetics400\videos_train\yoga\YtufoQt65yM_000149_000159.mp4", help="video file to run feature extraction on")
+    arg("--video", type=str, default=r"F:\PythonProjects\action_understanding\convert_caffe_model_to_pytorch\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="video file to run feature extraction on")
     arg("--frames", type=int, choices=(8, 32), default=32, help="clip frames for video model")
     arg("--classes", type=int, choices=(400, 487), default=400, help="classes in last layer")
     arg("--batch-size", type=int, default=1, help="number of sequences per batch for inference")

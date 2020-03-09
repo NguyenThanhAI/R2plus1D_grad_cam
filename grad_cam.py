@@ -238,7 +238,7 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--checkpoint_path", type=str, default="r2.5d_d34_l32.pth", help="Path to pretrained model")
-    parser.add_argument("--video_path", type=str, default=r"D:\kinetics400\videos_train\yoga\_EN7WZryBZQ_000690_000700.mp4", help="Path to test video")
+    parser.add_argument("--video_path", type=str, default=r"F:\PythonProjects\action_understanding\convert_caffe_model_to_pytorch\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="Path to test video")
     parser.add_argument("--num_classes", type=int, default=400, help="Num classes")
     parser.add_argument("--use_cuda", type=bool, default=False, help="Use GPU acceleration")
     parser.add_argument("--frame_index", type=int, default=30, help="Index of first frame of 32 consequent frames")
