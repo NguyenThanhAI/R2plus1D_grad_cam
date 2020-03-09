@@ -2,3 +2,4 @@
 *.jpg
 *.pth
 .idea/*.xml
+.idea/workspace.xml
