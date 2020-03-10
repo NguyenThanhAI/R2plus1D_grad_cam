@@ -4,6 +4,7 @@
     <list default="true" id="3d2d07c4-5921-46a9-a6f8-c62913193b5c" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/grad_cam.py" beforeDir="false" afterPath="$PROJECT_DIR$/grad_cam.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -43,7 +44,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.extract">
+  <component name="RunManager" selected="Python.grad_cam">
     <configuration name="extract" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="R2plus1D_grad_cam" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -109,8 +110,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.extract" />
         <item itemvalue="Python.grad_cam" />
+        <item itemvalue="Python.extract" />
         <item itemvalue="Python.guide_backprop" />
       </list>
     </recent_temporary>

@@ -1,5 +1,6 @@
 import os
 import argparse
+import json
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -58,7 +59,7 @@ def get_input_frames(args):
         if not ret:
             break
 
-        frame = cv2.resize(frame, (112, 112))
+        frame = cv2.resize(frame, (171, 128))
         frame_list.append(frame.copy()[:, :, ::-1])
 
     choice_list = range(len(frame_list) - 32 + 1)
@@ -71,7 +72,7 @@ def get_input_frames(args):
     frame_list = frame_list[index:index + 32]
     frames_to_show = frame_list.copy()
     show_frames_on_figure(frames_to_show)
-    preprocess = lambda x: (x / np.array([255., 255., 255.])[np.newaxis, np.newaxis, :] - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :]
+    preprocess = lambda x: ((x / np.array([255., 255., 255.])[np.newaxis, np.newaxis, :] - np.array([0.43216, 0.394666, 0.37645])[np.newaxis, np.newaxis, :]) / np.array([0.22803, 0.22145, 0.216989])[np.newaxis, np.newaxis, :])[int(round((128 - 112)/2)):int(round((128 - 112)/2)) + 112, int(round((171 - 112)/2)):int(round((171 - 112)/2))+112]
     frame_list = list(map(preprocess, frame_list))
     frame_list = np.stack(frame_list, axis=0)
     frame_list = np.transpose(frame_list, axes=(3, 0, 1, 2))
@@ -133,8 +134,12 @@ class GradCam:
             prob = softmax.cpu().data.numpy()[0]
             index = np.argsort(prob)[::-1][:3].tolist()
             name_cam = "predicted_class_cams.jpg"
-            print(list(map(lambda x: label_to_class[x], index)))
-            print("prob:", prob[index])
+            predicted_classes = list(map(lambda x: label_to_class[x], index))
+            prob = prob[index]
+            class_and_prob = dict(zip(predicted_classes, prob.tolist()))
+            with open(os.path.join("heatmap", folder_name, "result.txt"), "w") as f:
+                json.dump(class_and_prob, f)
+            print(class_and_prob)
             index = index[0]
 
         print("index of gradcam", index)
@@ -238,7 +243,7 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--checkpoint_path", type=str, default="r2.5d_d34_l32.pth", help="Path to pretrained model")
-    parser.add_argument("--video_path", type=str, default=r"D:\kinetics400\videos_train\abseiling\_IkgLzKQVzk_000020_000030.mp4", help="Path to test video")
+    parser.add_argument("--video_path", type=str, default=r"D:\kinetics400\videos_train\yoga\YZ8VMXkzYeE_000088_000098.mp4", help="Path to test video")
     parser.add_argument("--num_classes", type=int, default=400, help="Num classes")
     parser.add_argument("--use_cuda", type=bool, default=False, help="Use GPU acceleration")
     parser.add_argument("--frame_index", type=int, default=30, help="Index of first frame of 32 consequent frames")
